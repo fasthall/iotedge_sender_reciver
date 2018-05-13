@@ -2,6 +2,7 @@
 # Licensed under the MIT license. See LICENSE file in the project root for
 # full license information.
 
+import json
 import os
 import random
 import time
@@ -16,7 +17,6 @@ from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubE
 MESSAGE_TIMEOUT = 10000
 
 # global counters
-RECEIVE_CALLBACKS = 0
 SEND_CALLBACKS = 0
 
 # Choose HTTP, AMQP or MQTT as transport protocol.  Currently only MQTT is supported.
@@ -37,22 +37,13 @@ def send_confirmation_callback(message, result, user_context):
     print ( "    Total calls confirmed: %d" % SEND_CALLBACKS )
 
 
-# receive_message_callback is invoked when an incoming message arrives on the specified 
-# input queue (in the case of this sample, "input1").  Because this is a filter module, 
-# we will forward this message onto the "output1" queue.
-def receive_message_callback(message, hubManager):
-    global RECEIVE_CALLBACKS
-    message_buffer = message.get_bytearray()
-    size = len(message_buffer)
-    print ( "    Data: <<<%s>>> & Size=%d" % (message_buffer[:size].decode('utf-8'), size) )
-    map_properties = message.properties()
-    key_value_pair = map_properties.get_internals()
-    print ( "    Properties: %s" % key_value_pair )
-    RECEIVE_CALLBACKS += 1
-    print ( "    Total calls received: %d" % RECEIVE_CALLBACKS )
-    hubManager.forward_event_to_output("output1", message, 0)
-    return IoTHubMessageDispositionResult.ACCEPTED
-
+def send_message(hubManager):
+    ts = int(time.time() * 1000)
+    message = {
+        'sender': ts
+    }
+    hubManager.forward_event_to_output("output1", json.dumps(message), 0)
+    print("Message sent: {0}".format(ts))
 
 class HubManager(object):
 
@@ -67,10 +58,6 @@ class HubManager(object):
         # some embedded platforms need certificate information
         self.set_certificates()
         
-        # sets the callback when a message arrives on "input1" queue.  Messages sent to 
-        # other inputs or to the default will be silently discarded.
-        self.client.set_message_callback("input1", receive_message_callback, self)
-
     def set_certificates(self):
         isWindows = sys.platform.lower() in ['windows', 'win32']
         if not isWindows:
@@ -93,6 +80,7 @@ class HubManager(object):
             outputQueueName, event, send_confirmation_callback, send_context)
 
 def main(connection_string):
+    global SEND_CALLBACKS
     try:
         print ( "\nPython %s\n" % sys.version )
         print ( "IoT Hub Client for Python" )
@@ -104,6 +92,8 @@ def main(connection_string):
 
         while True:
             time.sleep(1000)
+            print("Sending message, {0} sent.".format(SEND_CALLBACKS))
+            send_message(hub_manager)
 
     except IoTHubError as iothub_error:
         print ( "Unexpected error %s from IoTHub" % iothub_error )
