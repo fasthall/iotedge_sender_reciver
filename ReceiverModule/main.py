@@ -10,6 +10,7 @@ import sys
 import iothub_client
 from iothub_client import IoTHubClient, IoTHubClientError, IoTHubTransportProvider
 from iothub_client import IoTHubMessage, IoTHubMessageDispositionResult, IoTHubError
+import pymssql
 
 # messageTimeout - the maximum time in milliseconds until a message times out.
 # The timeout period starts at IoTHubClient.send_event_async.
@@ -48,6 +49,7 @@ def receive_message_callback(message, hubManager):
     data = json.loads(message_text)
     data['receiver'] = int(time.time() * 1000)
     print("Received: {0}".format(data))
+    hubManager.store_to_db(data['sender'], data['receiver'])
     return IoTHubMessageDispositionResult.ACCEPTED
 
 
@@ -58,6 +60,8 @@ class HubManager(object):
             connection_string):
         self.client_protocol = PROTOCOL
         self.client = IoTHubClient(connection_string, PROTOCOL)
+        self.conn = pymssql.connect('sql:1433', 'SA', 'Strong!Passw0rd', "MeasurementsDB")
+        self.cursor = self.conn.cursor()
 
         # set the time until a message times out
         self.client.set_option("messageTimeout", MESSAGE_TIMEOUT)
@@ -88,6 +92,12 @@ class HubManager(object):
     def forward_event_to_output(self, outputQueueName, event, send_context):
         self.client.send_event_async(
             outputQueueName, event, send_confirmation_callback, send_context)
+
+    def store_to_db(self, sender, receiver):
+        self.cursor.execute('INSERT INTO MeasurementsDB.dbo.test (Sender, Receiver) Values ({0}, {1});'.format(sender, receiver))
+        self.conn.commit()
+        ts = int(time.time() * 1000)
+        self.cursor.execute('INSERT INTO MeasurementsDB.dbo.result (Sender, Receiver, DB) Values ({0}, {1}, {2});'.format(sender, receiver, ts))
 
 def main(connection_string):
     try:
