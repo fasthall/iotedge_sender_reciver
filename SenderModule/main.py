@@ -42,7 +42,7 @@ def send_message(hubManager):
     message = {
         'sender': ts
     }
-    hubManager.forward_event_to_output("output1", json.dumps(message), 0)
+    hubManager.forward_event_to_output("output1", IoTHubMessage(json.dumps(message)), 0)
     print("Message sent: {0}".format(ts))
 
 class HubManager(object):
@@ -91,9 +91,12 @@ def main(connection_string):
         print ( "The sample is now waiting for messages and will indefinitely.  Press Ctrl-C to exit. ")
 
         while True:
-            time.sleep(1000)
-            print("Sending message, {0} sent.".format(SEND_CALLBACKS))
-            send_message(hub_manager)
+            if SEND_CALLBACKS < 100:
+                print("Sending message, {0} sent.".format(SEND_CALLBACKS))
+                send_message(hub_manager)
+                time.sleep(5)
+            else:
+                time.sleep(1000)
 
     except IoTHubError as iothub_error:
         print ( "Unexpected error %s from IoTHub" % iothub_error )
